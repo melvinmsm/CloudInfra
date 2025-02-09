@@ -1,0 +1,51 @@
+# Node.js dependencies
+node_modules/
+npm-debug.log*
+
+# Build output
+build/
+dist/
+
+# Environment variables
+.env
+.env.local
+.env.*.local
+
+# Logs
+logs/
+*.log
+*.log.*
+
+# Temporary files
+*.tmp
+*.cache
+*.swp
+
+# OS-specific files
+.DS_Store
+Thumbs.db
+
+# IDE-specific files
+.vscode/
+.idea/
+*.iml
+
+# Test coverage
+coverage/
+
+# Static files cache
+*.out
+*.pid
+*.pid.lock
+
+# React-specific files
+src/setupTests.js
+src/reportWebVitals.js
+
+# Sensitive files
+src/**/*.tfvars
+src/**/*.tfstate
+src/**/*.tfstate.backup
+terraform.tfvars
+terraform.tfstate
+terraform.tfstate.backup

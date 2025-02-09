@@ -10,56 +10,73 @@ app.use(express.json());
 
 const TERRAFORM_FILE = "main.tf";
 
-// API to generate Terraform file dynamically
+//generate Terraform file dynamically
 app.post("/api/configure", (req, res) => {
-  const { project_id, region, machine_type } = req.body;
-
-  if (!project_id || !region || !machine_type) {
-    return res.status(400).json({ error: "Missing required fields" });
-  }
-
-  // Generate Terraform configuration
-  const terraformConfig = `
-provider "google" {
-  project     = "${project_id}"
-  region      = "${region}"
-  credentials = file("~/.config/gcloud/application_default_credentials.json")
-}
-
-resource "google_compute_instance" "vm_instance" {
-  name         = "my-instance"
-  machine_type = "${machine_type}"
-  zone         = "${region}-a"
-
-  boot_disk {
-    initialize_params {
-      image = "debian-cloud/debian-11"
-    }
-  }
-
-  network_interface {
-    network = "default"
-    access_config {}  # Assigns an external IP
-  }
+  const terraformVars = `
+project_id = "${req.body.project_id || ""}"
+region = "${req.body.region || ""}"
+zone = "${req.body.zone || ""}"
+machine_type = "${req.body.machine_type || ""}"
+instance_name = "${req.body.instance_name || ""}"
+os_image = "${req.body.os_image || ""}"
+disk_size = ${req.body.disk_size || 10}
+network = "${req.body.network || "default"}"
+subnetwork = "${req.body.subnetwork || "default"}"
+assign_external_ip = ${req.body.assign_external_ip || false}
+tags = ${JSON.stringify(req.body.tags || [])}
+metadata = ${JSON.stringify(req.body.metadata || {})}
+auto_delete_disk = ${req.body.auto_delete_disk || false}
+preemptible = ${req.body.preemptible || false}
+service_account = {
+  email = "${req.body.service_account?.email || ""}"
+  scopes = ${JSON.stringify(req.body.service_account?.scopes || [])}
 }
 `;
 
-  // Write to main.tf
-  fs.writeFile(TERRAFORM_FILE, terraformConfig, (err) => {
-    if (err) return res.status(500).json({ error: "Failed to write Terraform file" });
-    res.json({ message: "Terraform configuration saved" });
+  fs.writeFile("terraform.tfvars", terraformVars, (err) => {
+    if (err) {
+      console.error("Error writing terraform.tfvars:", err);
+      return res.status(500).json({ error: "Failed to write Terraform vars file" });
+    }
+
+    console.log("terraform.tfvars successfully written.");
+    res.json({ message: "Terraform variables configured" });
   });
 });
 
-// API to deploy the Terraform configuration
+//deploy the Terraform configuration
 app.post("/api/deploy", (req, res) => {
-  exec(`terraform init && terraform apply -auto-approve`, (err, stdout, stderr) => {
-    if (err) return res.status(500).json({ error: stderr });
-    res.json({ message: "Compute Engine instance created", output: stdout });
+  exec(`terraform destroy -auto-approve -no-color`, (destroyErr, destroyStdout, destroyStderr) => {
+    if (destroyErr) {
+      console.error("Terraform Destroy Failed:", destroyStderr);
+      return res.status(500).json({ error: "Terraform destroy failed. Check logs." });
+    }
+
+    console.log("Terraform Destroy Successful");
+
+    // Adding a delay to ensure the instance is fully removed
+    setTimeout(() => {
+      exec(`terraform apply -auto-approve -var-file=terraform.tfvars -no-color`, (applyErr, applyStdout, applyStderr) => {
+        if (applyErr) {
+          console.error("Terraform Apply Failed:", applyStderr);
+          return res.status(500).json({ error: applyStderr.trim() });
+        }
+
+        console.log("Terraform Apply Successful");
+        res.json({
+          message: "Compute Engine instance created successfully",
+          output: applyStdout.trim()
+        });
+      });
+    }, 5000); 
   });
 });
 
-// API to destroy the Compute Engine instance
+
+
+
+
+//destroy the Compute Engine instance
 app.post("/api/destroy", (req, res) => {
   exec(`terraform destroy -auto-approve`, (err, stdout, stderr) => {
     if (err) return res.status(500).json({ error: stderr });
@@ -67,7 +84,7 @@ app.post("/api/destroy", (req, res) => {
   });
 });
 
-// API to check Terraform status
+//check Terraform status
 app.get("/api/status", (req, res) => {
   exec(`terraform show -no-color`, (err, stdout, stderr) => {
     if (err) return res.status(500).json({ error: stderr });
@@ -75,6 +92,7 @@ app.get("/api/status", (req, res) => {
   });
 });
 
-// Start server
+
+
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`));

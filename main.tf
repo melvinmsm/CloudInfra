@@ -1,23 +1,33 @@
 
-provider "" {
-  project = ""
-  region  = "us-central1"
-  credentials = file(".json")
+provider "google" {
+  project = var.project_id
+  region  = var.region
+  credentials = file("")
 }
 
 resource "google_compute_instance" "vm_instance" {
-  name         = "my-instance"
-  machine_type = "e2-micro"
-  zone         = "us-central1-a"
+  name         = var.instance_name
+  machine_type = var.machine_type
+  zone         = var.zone
 
   boot_disk {
     initialize_params {
-      image = "debian-cloud/debian-11"
+      image = var.os_image
+      size  = var.disk_size
     }
   }
 
   network_interface {
-    network = "default"
-    access_config {}
+    network    = var.network
+    subnetwork = var.subnetwork
+
+    dynamic "access_config" {
+      for_each = var.assign_external_ip ? [1] : []
+      content {}
+    }
   }
+
+  tags = var.tags
+
+  metadata = var.metadata
 }
